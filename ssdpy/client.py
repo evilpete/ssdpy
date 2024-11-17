@@ -14,6 +14,7 @@ class SSDPClient(object):
         if proto not in allowed_protos:
             raise ValueError("Invalid proto - expected one of {}".format(allowed_protos))
         self.port = port
+        self.include_addr = kwargs.get('include_addr', False)
         if proto == "ipv4":
             af_type = socket.AF_INET
             self.broadcast_ip = ipv4_multicast_ip
@@ -34,6 +35,8 @@ class SSDPClient(object):
         if address is not None:
             self.sock.bind((address, 0))
         if iface is not None:
+            if isinstance(iface, str):
+                iface = bytes(iface, encoding='iso-8859-15')
             self.sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, iface)
             if proto == "ipv6":
                 # Specifically set multicast on interface
@@ -46,8 +49,7 @@ class SSDPClient(object):
     def recv(self):
         try:
             while True:
-                data = self.sock.recv(1024)
-                yield data
+                yield self.sock.recvfrom(1024)
         except socket.timeout:
             pass
         return
@@ -67,11 +69,14 @@ class SSDPClient(object):
         host = "{}:{}".format(self.broadcast_ip, self.port)
         data = create_msearch_payload(host, st, mx)
         self.send(data)
-        responses = [x for x in self.recv()]
+        responses = list(self.recv())
         parsed_responses = []
-        for response in responses:
+        for response, address in responses:
             try:
                 headers = parse_headers(response)
+                if self.include_addr:
+                    addr, port = address
+                    headers['SRC-ADDR'] = f'{addr}:{port}'
                 parsed_responses.append(headers)
             except ValueError:
                 # Invalid response, do nothing.

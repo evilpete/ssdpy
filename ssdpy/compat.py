@@ -15,7 +15,7 @@ string_types = basestring if PY2 else str  # noqa
 
 
 # Python 2 doesn't have socket.if_nametoindex so we need to implement it manually
-if LINUX:
+if LINUX or MACOSX:
     if PY2:
         import ctypes.util
 
